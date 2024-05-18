@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      ETHEREAL_EMAIL: ruthie.beier@ethereal.email
+      ETHEREAL_PASSWORD: yWRW7aaB4dQMR8Sqsx
+      DB_URL: postgres://postgres:postgres@db:5432/Genesis
+    volumes:
+      - ./data:/data
+    networks:
+      - genesis
+
+  db:
+    image: postgres:latest
+    container_name: genesis_db_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: Genesis
+      DATABASE_HOST: db
+    ports:
+        - '5432:5432'
+    volumes:
+        - ./data:/data
+    networks:
+        - genesis
+
+networks:
+  genesis:
+    driver: bridge
