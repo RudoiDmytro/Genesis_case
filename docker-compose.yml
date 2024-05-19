@@ -6,13 +6,15 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
-      ETHEREAL_EMAIL: ruthie.beier@ethereal.email
-      ETHEREAL_PASSWORD: yWRW7aaB4dQMR8Sqsx
+      ETHEREAL_EMAIL: chelsie.boehm6@ethereal.email
+      ETHEREAL_PASSWORD: GaZbAHrhFF7JB6paH2
       DB_URL: postgres://postgres:postgres@db:5432/Genesis
     volumes:
       - ./data:/data
+      - ./migration:/migration
     networks:
       - genesis
 
@@ -25,11 +27,16 @@ services:
       POSTGRES_DB: Genesis
       DATABASE_HOST: db
     ports:
-        - '5432:5432'
+      - '5432:5432'
     volumes:
-        - ./data:/data
+      - ./data:/data
     networks:
-        - genesis
+      - genesis
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   genesis:

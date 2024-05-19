@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/robfig/cron/v3"
 	"io"
 	"log"
 	"net/http"
@@ -16,8 +17,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v4/stdlib"
-
-	"github.com/robfig/cron/v3"
 )
 
 var (
@@ -36,14 +35,14 @@ type ExchangeRate struct {
 }
 
 func main() {
+
 	if err := dbInitialize(); err != nil {
 		log.Fatalf("Unable to run migrations: %v\n", err)
 	}
 
 	cronJob := cron.New()
-	cronJob.AddFunc("@daily", sendDailyExchangeRateEmails)
+	cronJob.AddFunc("@every 1m", sendDailyExchangeRateEmails)
 	cronJob.Start()
-
 	http.HandleFunc("/rate", getRateHandler)
 	http.HandleFunc("/subscribe", subscribeHandler)
 
@@ -54,6 +53,10 @@ func main() {
 func dbInitialize() error {
 	var err error
 
+	//os.Setenv("ETHEREAL_EMAIL", "chelsie.boehm6@ethereal.email")
+	//os.Setenv("ETHEREAL_PASSWORD", "GaZbAHrhFF7JB6paH2")
+	//os.Setenv("DB_URL", "postgres://postgres:Dmytry090302@localhost:5432/Genesis?sslmode=disable")
+
 	db, err = sql.Open("pgx", os.Getenv("DB_URL"))
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
@@ -61,24 +64,6 @@ func dbInitialize() error {
 
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Create the database if it doesn't exist
-	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS Genesis")
-	if err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
-	}
-
-	// Close the initial connection
-	err = db.Close()
-	if err != nil {
-		return fmt.Errorf("failed to close database connection: %w", err)
-	}
-
-	// Reconnect to the newly created database
-	db, err = sql.Open("pgx", os.Getenv("DB_URL"))
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
 	}
 
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
@@ -99,7 +84,6 @@ func dbInitialize() error {
 	}
 
 	return nil
-
 }
 
 func getRateHandler(w http.ResponseWriter, r *http.Request) {
@@ -108,8 +92,6 @@ func getRateHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid status value", http.StatusBadRequest)
 		return
 	}
-
-	sendDailyExchangeRateEmails()
 
 	response := map[string]float64{"rate": rate}
 	w.Header().Set("Content-Type", "application/json")
@@ -166,6 +148,7 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func emailSender(rate float64, to string) error {
+
 	from := os.Getenv("ETHEREAL_EMAIL")
 	password := os.Getenv("ETHEREAL_PASSWORD")
 
@@ -173,13 +156,16 @@ func emailSender(rate float64, to string) error {
 		return errors.New("ETHEREAL_EMAIL or ETHEREAL_PASSWORD is not set")
 	}
 
+	subject := "Daily Exchange Rate"
+	body := fmt.Sprintf("Current USD to UAH exchange rate: %.2f", rate)
+
+	msg := "From: " + from + "\n" +
+		"To: " + to + "\n" +
+		"Subject: " + subject + "\n\n" +
+		body
+
 	auth := smtp.PlainAuth("", from, password, "smtp.ethereal.email")
-
-	msg := []byte("To:" + to + "Subject: Daily Exchange Rate" +
-		fmt.Sprintf("Current exchange rate is %f UAH per 1 USD", rate))
-
-	err := smtp.SendMail("smtp.ethereal.email:587", auth, from, []string{to}, msg)
-
+	err := smtp.SendMail("smtp.ethereal.email:587", auth, from, []string{to}, []byte(msg))
 	if err != nil {
 		log.Fatal(err)
 		return err
