@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS subscriptions
+(
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(100) NOT NULL UNIQUE
+);

@@ -35,13 +35,17 @@ type ExchangeRate struct {
 }
 
 func main() {
+	//uncomment and write your variables
+	//os.Setenv("ETHEREAL_EMAIL", ....)
+	//os.Setenv("ETHEREAL_PASSWORD", ....)
+	//os.Setenv("DB_URL", ....)
 
 	if err := dbInitialize(); err != nil {
 		log.Fatalf("Unable to run migrations: %v\n", err)
 	}
 
 	cronJob := cron.New()
-	cronJob.AddFunc("@every 1m", sendDailyExchangeRateEmails)
+	cronJob.AddFunc("@daily", sendDailyExchangeRateEmails)
 	cronJob.Start()
 	http.HandleFunc("/rate", getRateHandler)
 	http.HandleFunc("/subscribe", subscribeHandler)
@@ -50,12 +54,10 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
+// Initialize database connection, creates the database if it doesn't exist
+// and applies any pending migrations to the database schema.
 func dbInitialize() error {
 	var err error
-
-	//os.Setenv("ETHEREAL_EMAIL", "chelsie.boehm6@ethereal.email")
-	//os.Setenv("ETHEREAL_PASSWORD", "GaZbAHrhFF7JB6paH2")
-	//os.Setenv("DB_URL", "postgres://postgres:Dmytry090302@localhost:5432/Genesis?sslmode=disable")
 
 	db, err = sql.Open("pgx", os.Getenv("DB_URL"))
 	if err != nil {
@@ -86,6 +88,8 @@ func dbInitialize() error {
 	return nil
 }
 
+// HTTP handler that fetches the current USD to UAH exchange rate
+// and returns it as a JSON response.
 func getRateHandler(w http.ResponseWriter, r *http.Request) {
 	rate, err := getExchangeRate()
 	if err != nil {
@@ -102,6 +106,7 @@ func getRateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// getExchangeRate fetches the current USD to UAH exchange rate from the NBU API.
 func getExchangeRate() (float64, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, _ := client.Get(exchangeRateAPI)
@@ -128,6 +133,8 @@ func getExchangeRate() (float64, error) {
 	return 0, nil
 }
 
+// HTTP handler that allows users to subscribe to receive daily exchange rate emails.
+// It takes the email address from the request form and adds it to the database.
 func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	if email == "" {
@@ -147,6 +154,7 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// sends an email with the current exchange rate to the provided recipient.
 func emailSender(rate float64, to string) error {
 
 	from := os.Getenv("ETHEREAL_EMAIL")
@@ -173,12 +181,14 @@ func emailSender(rate float64, to string) error {
 	return err
 }
 
+// adds a new subscriber's email address to the database.
 func addSubscriber(email string) error {
 	query := `INSERT INTO subscriptions (email) VALUES ($1)`
 	_, err := db.Exec(query, email)
 	return err
 }
 
+// retrieves a list of all subscriber email addresses from the database.
 func getSubscribers() ([]string, error) {
 	rows, err := db.Query("SELECT email FROM subscriptions")
 	if err != nil {
@@ -197,6 +207,9 @@ func getSubscribers() ([]string, error) {
 	return emails, nil
 }
 
+// function that runs daily (scheduled by the cron job)
+// to fetch the current exchange rate, retrieve the list of subscribers, and send an email
+// with the exchange rate to each subscriber
 func sendDailyExchangeRateEmails() {
 	rate, err := getExchangeRate()
 	if err != nil {

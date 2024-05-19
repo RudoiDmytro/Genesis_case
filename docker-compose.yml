@@ -14,7 +14,7 @@ services:
       DB_URL: postgres://postgres:postgres@db:5432/Genesis
     volumes:
       - ./data:/data
-      - ./migration:/migration
+      - ./migration:/app/migration
     networks:
       - genesis
 
